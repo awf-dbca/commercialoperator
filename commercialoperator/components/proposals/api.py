@@ -1691,7 +1691,7 @@ class ProposalViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 instance = self.get_object()
-                is_with_qaofficer =  str(request.data.get('is_with_qaofficer')).lower() == 'true'
+                is_with_qaofficer =  str(request.data.get('with_qaofficer')).lower() == 'true'
                 data = {}
                 if is_with_qaofficer:
                     data['type'] = u'with_qaofficer'
