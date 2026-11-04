@@ -508,63 +508,37 @@ def delete_session_filming_invoice(session):
 def create_compliance_fee_lines(
     compliance, invoice_text=None, vouchers=[], internal=False
 ):
-    """Create the ledger lines - line item for compliance fee sent to payment system"""
+    """Create one GST-exempt participant charge using the Event licence code.
 
-    def add_line_item(park, price, no_persons):
-        if no_persons > 0:
-            return {
-                "ledger_description": "{}, participants: {}".format(
-                    park.name, no_persons
-                ),
-                "oracle_code": park.oracle_code(compliance.proposal.application_type),
-                #'oracle_code': 'NNP415 GST',
-                "price_incl_tax": float(price),
-                "price_excl_tax": price,  # Compliance 'park' participants - this is GST Emempt
-                #'price_excl_tax':  float(price) if park.is_gst_exempt else round(float(calculate_excl_gst(price)), 2),
-                "quantity": 1,  # no_persons,
-            }
-        return None
+    The full charge is posted to that code, rather than allocated across parks,
+    so Ledger invoices and receipts show a single product.
+    """
+    num_participants = compliance.num_participants
+    if num_participants is None or num_participants <= 0:
+        raise ValidationError("A positive number of participants is required.")
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    events_park_price = compliance.proposal.application_type.events_park_fee
-    events_parks = compliance.proposal.events_parks.all().distinct("park__name")
-    # cost_per_park = (events_park_price * compliance.num_participants) / len(events_parks)
-    invoice_total = events_park_price * compliance.num_participants
+    application_type = compliance.proposal.application_type
+    oracle_code = application_type.oracle_code_licence
+    if not oracle_code or not oracle_code.strip():
+        raise ValidationError("The Event licence accounting code is not configured.")
+
+    events_park_price = application_type.events_park_fee
+    invoice_total = events_park_price * num_participants
     if settings.DEBUG:
         # since Ledger UAT only handles whole integer total
         invoice_total = round(invoice_total, 0)
 
-    try:
-        alloc_per_park = round(invoice_total / len(events_parks), 2)
-    except:
-        alloc_per_park = 0
-
-    try:
-        rounding_error = round(invoice_total - (alloc_per_park * len(events_parks)), 2)
-    except:
-        rounding_error = 0
-
-    lines = []
-    for idx, events_park in enumerate(events_parks, 1):
-        park = events_park.park
-        if idx == len(events_parks):
-            # add rounding error to last line/product
-            lines.append(
-                add_line_item(
-                    park,
-                    price=alloc_per_park + rounding_error,
-                    no_persons=compliance.num_participants,
-                )
-            )
-        else:
-            lines.append(
-                add_line_item(
-                    park, price=alloc_per_park, no_persons=compliance.num_participants
-                )
-            )
-
-    # logger.info('{}'.format(lines))
-    return lines
+    return [
+        {
+            "ledger_description": (
+                "${:.2f} per participant licence charge - {} participants"
+            ).format(events_park_price, num_participants),
+            "oracle_code": oracle_code,
+            "price_incl_tax": float(invoice_total),
+            "price_excl_tax": invoice_total,
+            "quantity": 1,
+        }
+    ]
 
 
 def create_fee_lines(proposal, invoice_text=None, vouchers=[], internal=False):
