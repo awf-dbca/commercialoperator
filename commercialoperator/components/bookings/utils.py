@@ -513,6 +513,22 @@ def create_compliance_fee_lines(
     The full charge is posted to that code, rather than allocated across parks,
     so Ledger invoices and receipts show a single product.
     """
+    # def add_line_item(park, price, no_persons):
+    #     if no_persons > 0:
+    #         return {
+    #             "ledger_description": "{}, participants: {}".format(
+    #                 park.name, no_persons
+    #             ),
+    #             "oracle_code": park.oracle_code(compliance.proposal.application_type),
+    #             "price_incl_tax": float(price),
+    #             "price_excl_tax": price,
+    #             "quantity": 1,
+    #         }
+    #     return None
+    #
+    # now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # events_parks = compliance.proposal.events_parks.all().distinct("park__name")
+
     num_participants = compliance.num_participants
     if num_participants is None or num_participants <= 0:
         raise ValidationError("A positive number of participants is required.")
@@ -527,6 +543,36 @@ def create_compliance_fee_lines(
     if settings.DEBUG:
         # since Ledger UAT only handles whole integer total
         invoice_total = round(invoice_total, 0)
+
+    # try:
+    #     alloc_per_park = round(invoice_total / len(events_parks), 2)
+    # except:
+    #     alloc_per_park = 0
+    #
+    # try:
+    #     rounding_error = round(invoice_total - (alloc_per_park * len(events_parks)), 2)
+    # except:
+    #     rounding_error = 0
+    #
+    # lines = []
+    # for idx, events_park in enumerate(events_parks, 1):
+    #     park = events_park.park
+    #     if idx == len(events_parks):
+    #         # add rounding error to last line/product
+    #         lines.append(
+    #             add_line_item(
+    #                 park,
+    #                 price=alloc_per_park + rounding_error,
+    #                 no_persons=compliance.num_participants,
+    #             )
+    #         )
+    #     else:
+    #         lines.append(
+    #             add_line_item(
+    #                 park, price=alloc_per_park, no_persons=compliance.num_participants
+    #             )
+    #         )
+    # return lines
 
     return [
         {
