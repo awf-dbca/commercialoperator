@@ -482,7 +482,6 @@ class ApprovalViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
             "POST",
         ],
         detail=True,
-        permission_classes=[InternalPermission] #TODO not apparent if higher permission required, keeping to internal for now
     )
     def approval_surrender(self, request, *args, **kwargs):
         try:

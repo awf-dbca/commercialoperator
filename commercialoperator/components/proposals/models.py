@@ -28,6 +28,7 @@ from multiselectfield import MultiSelectField
 from rest_framework import status
 from reversion.models import Version
 from taggit.models import TaggedItemBase
+from taggit import serializers
 
 from commercialoperator import exceptions
 from commercialoperator.components.main.mixins import RevisionedMixin, SanitiseMixin
@@ -2212,15 +2213,15 @@ class Proposal(DirtyFieldsMixin, RevisionedMixin):
                 ret1 = send_submit_email_notification(request, self)
                 ret2 = send_external_submit_email_notification(request, self)
 
-                if ret1 and ret2:
-                    self.processing_status = "with_assessor"
-                    self.customer_status = "with_assessor"
-                    self.documents.all().update(can_delete=False)
-                    self.save()
-                else:
-                    raise ValidationError(
+                if not(ret1 and ret2):
+                    logger.error(
                         "An error occurred while submitting proposal (Submit email notifications failed)"
                     )
+                self.processing_status = "with_assessor"
+                self.customer_status = "with_assessor"
+                self.documents.all().update(can_delete=False)
+                self.save()
+                    
                 # Create assessor checklist with the current assessor_list type questions
                 # Assessment instance already exits then skip.
                 try:
@@ -3238,8 +3239,13 @@ class Proposal(DirtyFieldsMixin, RevisionedMixin):
                     "no_payment": False,
                 }
 
+                try:
+                    email_user_id = self.submitter.id if self.submitter else request.user.id
+                except:
+                    raise serializers.ValidationError("No submitter or request user id")
+
                 basket_hash = create_basket_session(
-                    request, request.user.id, basket_params
+                    request, email_user_id, basket_params
                 )
 
                 basket_hash_split = basket_hash.split("|")

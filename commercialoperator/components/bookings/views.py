@@ -10,7 +10,8 @@ from django.urls import reverse
 from django.views.generic.base import TemplateView, View
 from ledger_api_client.helpers import is_payment_admin
 from ledger_api_client.ledger_models import EmailUserRO as EmailUser
-from ledger_api_client.ledger_models import Invoice
+from ledger_api_client.ledger_models import Invoice, Basket
+from ledger_api_client.utils import validate_booking_and_invoice_references
 from rest_framework import serializers, status, views
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -559,6 +560,10 @@ class ComplianceFeeSuccessViewPreload(views.APIView):
             .last()
         )
 
+        booking_reference = compliance.lodgement_number
+        if not validate_booking_and_invoice_references(booking_reference, invoice_ref):
+            raise serializers.ValidationError(f"Invoice: {invoice_ref} and Booking Reference: {booking_reference} are not part of the same order/basket.")
+
         _, _ = ComplianceFeeInvoice.objects.get_or_create(
             compliance_fee=compliance_fee, invoice_reference=invoice_ref
         )
@@ -610,6 +615,12 @@ class ComplianceFeeSuccessViewPreload(views.APIView):
 class ComplianceFeeSuccessView(TemplateView):
     template_name = "commercialoperator/booking/success_compliance_fee.html"
 
+    def valid_token_payment_session(self, request, invoice_reference):
+        if 'token_payment_session' in request.session:
+            basket = Basket.objects.filter(status='Submitted', id=request.session['token_payment_session']).order_by('-id').first()
+            del request.session['token_payment_session']
+            return validate_booking_and_invoice_references(basket.booking_reference, invoice_reference)
+
     def get(self, request, *args, **kwargs):
         print("ComplianceFeeSuccessView")
         lodgement_number = kwargs.get("reference")
@@ -619,21 +630,28 @@ class ComplianceFeeSuccessView(TemplateView):
         except:
             raise serializers.ValidationError("Compliance does not exist")
 
+        if 'token_payment_session' in request.session:
+            invoice_ref = request.GET.get("invoice", "")
+        else:
+            compliance_fee = get_session_compliance_invoice(request.session)
+            fee_inv = compliance_fee.compliance_fee_invoices.order_by("-id").first()
+            invoice_ref = fee_inv.invoice_reference
+
         user = request.user
         try:
-            user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            try:
+                user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            except:
+                user_orgs = []
             if not (
                 is_internal(self.request)
                 or compliance.proposal.org_applicant in user_orgs
                 or compliance.proposal.submitter == user
+                or self.valid_token_payment_session(request, invoice_ref)
             ):
                 raise PermissionDenied
         except:
             raise
-
-        compliance_fee = get_session_compliance_invoice(request.session)
-        fee_inv = compliance_fee.compliance_fee_invoices.order_by("-id").first()
-        invoice_ref = fee_inv.invoice_reference
 
         try:
             inv = Invoice.objects.get(reference=invoice_ref)
@@ -677,6 +695,10 @@ class FilmingFeeSuccessViewPreload(views.APIView):
                 "Filming Fee Proposal does not match provided lodgement number"
             )
 
+        booking_reference = proposal.lodgement_number
+        if not validate_booking_and_invoice_references(booking_reference, invoice_ref):
+            raise serializers.ValidationError(f"Invoice: {invoice_ref} and Booking Reference: {booking_reference} are not part of the same order/basket.")
+
         if filming_fee.payment_type == FilmingFee.PAYMENT_TYPE_TEMPORARY:
             filming_fee.payment_type = ApplicationFee.PAYMENT_TYPE_INTERNET
             filming_fee.expiry_time = None
@@ -712,6 +734,12 @@ class FilmingFeeSuccessViewPreload(views.APIView):
 class FilmingFeeSuccessView(TemplateView):
     template_name = "commercialoperator/booking/success_fee.html"
 
+    def valid_token_payment_session(self, request, invoice_reference):
+        if 'token_payment_session' in request.session:
+            basket = Basket.objects.filter(status='Submitted', id=request.session['token_payment_session']).order_by('-id').first()
+            del request.session['token_payment_session']
+            return validate_booking_and_invoice_references(basket.booking_reference, invoice_reference)
+
     def get(self, request, *args, **kwargs):
         print("FilmingFeeSuccessView")
         lodgement_number = kwargs.get("reference")
@@ -721,24 +749,29 @@ class FilmingFeeSuccessView(TemplateView):
         except:
             raise serializers.ValidationError("Proposal does not exist")
 
+        if 'token_payment_session' in request.session:
+            invoice_ref = request.GET.get("invoice", "")
+        else:
+            filming_fee = get_session_filming_invoice(request.session)
+            fee_inv = filming_fee.filming_fee_invoices.order_by("-id").first()
+            invoice_ref = fee_inv.invoice_reference
+
         user = request.user
         try:
-            user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            try:
+                user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            except:
+                user_orgs = []
             if not (
                 is_internal(self.request)
                 or proposal.org_applicant in user_orgs
                 or proposal.submitter == user
+                or self.valid_token_payment_session(request, invoice_ref)
             ):
                 raise PermissionDenied
         except:
             raise
 
-        filming_fee = get_session_filming_invoice(request.session)
-        fee_inv = filming_fee.filming_fee_invoices.order_by("-id").first()
-        invoice_ref = fee_inv.invoice_reference
-
-        # TODO review all instances of fee success "submitter" being set -
-        # check the template and check if the information is accurate RE emails sent and to where
         applicant = proposal.applicant_obj
         try:
             if applicant.email:
@@ -782,6 +815,10 @@ class ApplicationFeeSuccessViewPreload(views.APIView):
         proposal_fee = (
             ApplicationFee.objects.filter(proposal=proposal).order_by("created").last()
         )
+
+        booking_reference = proposal.lodgement_number
+        if not validate_booking_and_invoice_references(booking_reference, invoice_ref):
+            raise serializers.ValidationError(f"Invoice: {invoice_ref} and Booking Reference: {booking_reference} are not part of the same order/basket.")
 
         _, _ = ApplicationFeeInvoice.objects.get_or_create(
             application_fee=proposal_fee, invoice_reference=invoice_ref
@@ -839,6 +876,12 @@ class ApplicationFeeSuccessViewPreload(views.APIView):
 class ApplicationFeeSuccessView(TemplateView):
     template_name = "commercialoperator/booking/success_fee.html"
 
+    def valid_token_payment_session(self, request, invoice_reference):
+        if 'token_payment_session' in request.session:
+            basket = Basket.objects.filter(status='Submitted', id=request.session['token_payment_session']).order_by('-id').first()
+            del request.session['token_payment_session']
+            return validate_booking_and_invoice_references(basket.booking_reference, invoice_reference)
+
     def get(self, request, *args, **kwargs):
         print("ApplicationFeeSuccessView")
         lodgement_number = kwargs.get("reference")
@@ -848,25 +891,29 @@ class ApplicationFeeSuccessView(TemplateView):
         except:
             raise serializers.ValidationError("Proposal does not exist")
 
+        if 'token_payment_session' in request.session:
+            invoice_ref = request.GET.get("invoice", "")
+        else:
+            application_fee = get_session_application_invoice(request.session)
+            fee_inv = application_fee.application_fee_invoices.order_by("-id").first()
+            invoice_ref = fee_inv.invoice_reference
+
         user = request.user
         try:
-            user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            try:
+                user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            except:
+                user_orgs = []
             if not (
                 is_internal(self.request)
                 or proposal.org_applicant in user_orgs
                 or proposal.submitter == user
+                or self.valid_token_payment_session(request, invoice_ref)
             ):
                 raise PermissionDenied
         except:
             raise
 
-        application_fee = get_session_application_invoice(request.session)
-
-        fee_inv = application_fee.application_fee_invoices.order_by("-id").first()
-        invoice_ref = fee_inv.invoice_reference
-
-        # TODO review all instances of fee success "submitter" being set -
-        # check the template and check if the information is accurate RE emails sent and to where
         applicant = proposal.applicant_obj
         try:
             if applicant.email:
@@ -908,6 +955,10 @@ class BookingSuccessViewPreload(views.APIView):
 
         # use the latest Fee record
         booking = Booking.objects.filter(proposal=proposal).order_by("created").last()
+
+        booking_reference = proposal.lodgement_number
+        if not validate_booking_and_invoice_references(booking_reference, invoice_ref):
+            raise serializers.ValidationError(f"Invoice: {invoice_ref} and Booking Reference: {booking_reference} are not part of the same order/basket.")
 
         _, created = BookingInvoice.objects.get_or_create(
             booking=booking,
@@ -975,6 +1026,12 @@ class BookingSuccessViewPreload(views.APIView):
 class BookingSuccessView(TemplateView):
     template_name = "commercialoperator/booking/success.html"
 
+    def valid_token_payment_session(self, request, invoice_reference):
+        if 'token_payment_session' in request.session:
+            basket = Basket.objects.filter(status='Submitted', id=request.session['token_payment_session']).order_by('-id').first()
+            del request.session['token_payment_session']
+            return validate_booking_and_invoice_references(basket.booking_reference, invoice_reference)
+
     def get(self, request, *args, **kwargs):
         print("BookingSuccessView")
         lodgement_number = kwargs.get("reference")
@@ -984,26 +1041,35 @@ class BookingSuccessView(TemplateView):
         except:
             raise serializers.ValidationError("Proposal does not exist")
 
+        booking = Booking.objects.filter(proposal=proposal).order_by("created").last()
+        fee_inv = booking.invoices.order_by("-id").first()
+
+        if 'token_payment_session' in request.session:
+            invoice_ref = request.GET.get("invoice", "")
+            if invoice_ref != fee_inv.invoice_reference:
+                logger.warning("Latest booking record invoice and invoice in request do not match")
+        else:
+            session_booking = get_session_booking(request.session)
+            invoice_ref = fee_inv.invoice_reference
+            if booking != session_booking:
+                logger.warning("Latest booking record and booking in session do not match")
+
         user = request.user
         try:
-            user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            try:
+                user_orgs = [org.id for org in user.commercialoperator_organisations.all()]
+            except:
+                user_orgs = []
             if not (
                 is_internal(self.request)
                 or proposal.org_applicant in user_orgs
                 or proposal.submitter == user
+                or self.valid_token_payment_session(request, invoice_ref)
             ):
                 raise PermissionDenied
         except:
             raise
 
-        booking = Booking.objects.filter(proposal=proposal).order_by("created").last()
-        session_booking = get_session_booking(request.session)
-
-        if booking != session_booking:
-            logger.warning("Latest booking record and booking in session do not match")
-
-        # TODO review all instances of fee success "submitter" being set -
-        # check the template and check if the information is accurate RE emails sent and to where
         applicant = proposal.applicant_obj
         try:
             if applicant.email:
@@ -1018,9 +1084,6 @@ class BookingSuccessView(TemplateView):
             submitter = (
                 proposal.submitter.email if proposal and proposal.submitter else None
             )
-
-        fee_inv = booking.invoices.order_by("-id").first()
-        invoice_ref = fee_inv.invoice_reference
 
         try:
             inv = Invoice.objects.get(reference=invoice_ref)

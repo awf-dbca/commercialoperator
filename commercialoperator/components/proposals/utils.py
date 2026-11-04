@@ -1539,16 +1539,16 @@ def proposal_submit(proposal, request=None):
         ret1 = send_submit_email_notification(request, proposal)
         ret2 = send_external_submit_email_notification(request, proposal)
 
-        if ret1 and ret2:
-            proposal.processing_status = "with_assessor"
-            proposal.customer_status = "with_assessor"
-            proposal.documents.all().update(can_delete=False, can_hide=True)
-            proposal.required_documents.all().update(can_delete=False, can_hide=True)
-            proposal.save()
-        else:
-            raise ValidationError(
+        if not(ret1 and ret2):
+            logger.error(
                 "An error occurred while submitting proposal (Submit email notifications failed)"
             )
+        proposal.processing_status = "with_assessor"
+        proposal.customer_status = "with_assessor"
+        proposal.documents.all().update(can_delete=False, can_hide=True)
+        proposal.required_documents.all().update(can_delete=False, can_hide=True)
+        proposal.save()
+        
         # Create assessor checklist with the current assessor_list type questions
         # Assessment instance already exits then skip.
         try:
