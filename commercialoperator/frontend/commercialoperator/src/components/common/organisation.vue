@@ -71,7 +71,7 @@
                                         type="text"
                                         class="form-control"
                                         required
-                                        :disabled="!is_internal"
+                                        disabled
                                     />
                                 </div>
                             </div>
@@ -86,7 +86,7 @@
                                         type="text"
                                         class="form-control"
                                         required
-                                        :disabled="!is_internal"
+                                        disabled
                                     />
                                 </div>
                             </div>
@@ -140,7 +140,7 @@
                                         type="email"
                                         class="form-control"
                                         required
-                                        :disabled="!is_internal"
+                                        disabled
                                     />
                                 </div>
                             </div>
@@ -524,7 +524,6 @@ export default {
                 processing: true,
             },
             filterOrgContactStatus: null,
-            is_internal: false,
             is_commercialoperator_admin: false,
             is_org_access_member: false,
             contact_user: {
@@ -1478,7 +1477,6 @@ export default {
                         ? vm.org.organisation_address
                         : {};
                 vm.org.pins = vm.org.pins != null ? vm.org.pins : {};
-                vm.is_internal = Boolean(vm.profile.is_internal);
                 vm.is_commercialoperator_admin =
                     vm.profile.is_commercialoperator_admin;
                 vm.is_org_access_member = vm.profile.is_org_access_member;
