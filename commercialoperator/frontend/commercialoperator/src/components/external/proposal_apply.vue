@@ -29,8 +29,9 @@
                                 <div
                                     v-if="
                                         profile.commercialoperator_organisations
-                                            .length > 0
-                                    "
+                                            .length > 0 
+                                    || profile.is_internal
+                                    " 
                                 >
                                     <label>Do you apply </label>
                                     <br />
