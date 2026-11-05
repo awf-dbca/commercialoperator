@@ -547,6 +547,22 @@ class OrganisationViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
                 status=status.HTTP_404_NOT_FOUND,
                 data={"message": "Contact not found for this organisation."},
             )
+        #external user should not be able to change first_name, last_name, or email
+        internal_request = is_internal(request)
+        if not internal_request:
+            errors = {}
+            for field in ("first_name", "last_name", "email"):
+                submitted_value = data[field]
+                stored_value = getattr(org_contact, field)
+                if field == "email":
+                    submitted_value = submitted_value.lower()
+                    stored_value = stored_value.lower()
+                if submitted_value != stored_value:
+                    errors[field] = [
+                        "This field cannot be changed by external users."
+                    ]
+            if errors:
+                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         if (
             data["email"].lower() != org_contact.email.lower()
@@ -556,12 +572,13 @@ class OrganisationViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
                 {"email": "A contact with this email already exists for this organisation."}
             )
 
-        org_contact.first_name = data["first_name"]
-        org_contact.last_name = data["last_name"]
+        if internal_request:
+            org_contact.first_name = data["first_name"]
+            org_contact.last_name = data["last_name"]
+            org_contact.email = data["email"].lower()
         org_contact.phone_number = data.get("phone_number")
         org_contact.mobile_number = data.get("mobile_number")
         org_contact.fax_number = data.get("fax_number")
-        org_contact.email = data["email"].lower()
         org_contact.save()
 
         updated_contact = OrganisationContactSerializer(org_contact)
