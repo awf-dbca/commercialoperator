@@ -530,6 +530,7 @@ export default {
                 vm.email_user.is_internal = data[2].is_internal;
                 vm.organisation_requests = data[3];
                 vm.email_user.system_settings = data[4].system_settings;
+                vm.email_user.email = data[4].email;
 
                 this.$nextTick(() => {
                     if (vm.email_user.postal_same_as_residential) {
@@ -738,6 +739,7 @@ export default {
                         ),
                         {
                             emulateJSON: true,
+                            body: JSON.stringify(vm.email_user),
                             method: 'POST',
                             headers: {
                                 Accept: 'application/json',
