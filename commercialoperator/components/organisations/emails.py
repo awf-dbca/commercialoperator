@@ -540,7 +540,7 @@ def _log_org_email(email_message, organisation, customer, sender=None):
     else:
         text = smart_text(email_message)
         subject = ""
-        to = request.requester.email
+        to = customer
         fromm = smart_text(sender) if sender else SYSTEM_NAME
         all_ccs = ""
 
