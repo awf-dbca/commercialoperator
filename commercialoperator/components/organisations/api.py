@@ -548,20 +548,21 @@ class OrganisationViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
                 data={"message": "Contact not found for this organisation."},
             )
 
-        if (
-            data["email"].lower() != org_contact.email.lower()
-            and instance.contacts.filter(email__iexact=data["email"]).exclude(id=org_contact.id).exists()
-        ):
-            raise serializers.ValidationError(
-                {"email": "A contact with this email already exists for this organisation."}
-            )
+        errors = {}
+        for field in ("first_name", "last_name", "email"):
+            submitted_value = data[field]
+            stored_value = getattr(org_contact, field)
+            if field == "email":
+                submitted_value = submitted_value.lower()
+                stored_value = stored_value.lower()
+            if submitted_value != stored_value:
+                errors[field] = ["This field cannot be changed."]
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
-        org_contact.first_name = data["first_name"]
-        org_contact.last_name = data["last_name"]
         org_contact.phone_number = data.get("phone_number")
         org_contact.mobile_number = data.get("mobile_number")
         org_contact.fax_number = data.get("fax_number")
-        org_contact.email = data["email"].lower()
         org_contact.save()
 
         updated_contact = OrganisationContactSerializer(org_contact)
