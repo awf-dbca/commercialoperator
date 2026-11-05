@@ -71,6 +71,7 @@
                                         type="text"
                                         class="form-control"
                                         required
+                                        disabled
                                     />
                                 </div>
                             </div>
@@ -85,6 +86,7 @@
                                         type="text"
                                         class="form-control"
                                         required
+                                        disabled
                                     />
                                 </div>
                             </div>
@@ -138,6 +140,7 @@
                                         type="email"
                                         class="form-control"
                                         required
+                                        disabled
                                     />
                                 </div>
                             </div>
